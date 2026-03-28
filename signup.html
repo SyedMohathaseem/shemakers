@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign Up — SheMakers</title>
+  <meta name="description" content="Create your SheMakers account. Join as a seller or buyer and start your handmade journey.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="auth-header">
+        <a href="index.html" class="auth-brand">SheMakers</a>
+        <h1>Create your account</h1>
+        <p>Join the women makers community</p>
+      </div>
+
+      <form class="auth-form" id="signupForm" onsubmit="return false;">
+        <div class="form-group">
+          <label class="form-label" for="nameInput">Full Name</label>
+          <input class="form-input" type="text" id="nameInput" placeholder="Enter your name" required autocomplete="name">
+          <span class="form-error" id="nameError"></span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="phoneInput">Phone Number</label>
+          <input class="form-input" type="tel" id="phoneInput" placeholder="e.g. 9876543210" required autocomplete="tel">
+          <span class="form-error" id="phoneError"></span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="passwordInput">Password</label>
+          <input class="form-input" type="password" id="passwordInput" placeholder="Min 6 characters" required minlength="6">
+          <span class="form-error" id="passwordError"></span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="confirmPasswordInput">Confirm Password</label>
+          <input class="form-input" type="password" id="confirmPasswordInput" placeholder="Re-enter password" required>
+          <span class="form-error" id="confirmError"></span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">I want to</label>
+          <div class="role-toggle">
+            <div class="role-toggle-btn active" data-role="buyer" onclick="selectRole(this)">🛒 Buy Products</div>
+            <div class="role-toggle-btn" data-role="seller" onclick="selectRole(this)">🏪 Sell Products</div>
+          </div>
+        </div>
+
+        <div class="form-group" id="sellerEligibilityGroup" style="display:none;">
+          <label class="form-label" for="sellerWomanCheck">Seller Eligibility</label>
+          <label style="display:flex;gap:10px;align-items:flex-start;color:var(--gray-600);font-size:var(--text-sm);line-height:1.45;">
+            <input type="checkbox" id="sellerWomanCheck" style="margin-top:3px;">
+            I confirm that I am a woman entrepreneur and I will list only women-made handmade products.
+          </label>
+          <p style="font-size:var(--text-xs);color:var(--gray-500);margin-top:6px;line-height:1.45;">
+            Note: This is a self-declaration. Additional profile verification can be requested later by support.
+          </p>
+          <span class="form-error" id="sellerEligibilityError"></span>
+        </div>
+
+        <button class="btn btn-primary btn-lg" type="submit" id="signupBtn" style="width:100%;">
+          Create Account
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        Already have an account? <a href="login.html">Log In</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="js/firebase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/products.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    let selectedRole = 'buyer';
+
+    function selectRole(el) {
+      document.querySelectorAll('.role-toggle-btn').forEach(btn => btn.classList.remove('active'));
+      el.classList.add('active');
+      selectedRole = el.dataset.role;
+
+      const eligibilityGroup = document.getElementById('sellerEligibilityGroup');
+      if (eligibilityGroup) {
+        eligibilityGroup.style.display = selectedRole === 'seller' ? 'block' : 'none';
+      }
+    }
+
+    document.getElementById('signupForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      // Clear errors
+      document.querySelectorAll('.form-error').forEach(el => {
+        el.textContent = '';
+        el.classList.remove('visible');
+      });
+      document.querySelectorAll('.form-input').forEach(el => el.classList.remove('error'));
+
+      const name = document.getElementById('nameInput').value.trim();
+      const phone = document.getElementById('phoneInput').value.trim();
+      const password = document.getElementById('passwordInput').value;
+      const confirm = document.getElementById('confirmPasswordInput').value;
+      const sellerWomanCheck = document.getElementById('sellerWomanCheck').checked;
+
+      let hasError = false;
+
+      if (!name) {
+        showFieldError('nameInput', 'nameError', 'Name is required');
+        hasError = true;
+      }
+      if (!phone || phone.length < 10) {
+        showFieldError('phoneInput', 'phoneError', 'Enter a valid phone number (min 10 digits)');
+        hasError = true;
+      }
+      if (password.length < 6) {
+        showFieldError('passwordInput', 'passwordError', 'Password must be at least 6 characters');
+        hasError = true;
+      }
+      if (password !== confirm) {
+        showFieldError('confirmPasswordInput', 'confirmError', 'Passwords do not match');
+        hasError = true;
+      }
+      if (selectedRole === 'seller' && !sellerWomanCheck) {
+        const err = document.getElementById('sellerEligibilityError');
+        err.textContent = 'To create seller account, this confirmation is required';
+        err.classList.add('visible');
+        hasError = true;
+      }
+
+      if (hasError) return;
+
+      const btn = document.getElementById('signupBtn');
+      btn.disabled = true;
+      btn.textContent = 'Creating account...';
+
+      try {
+        await Auth.signup({
+          name,
+          phone,
+          password,
+          role: selectedRole,
+          isWomanSeller: sellerWomanCheck
+        });
+        App.showToast('Account created successfully!', 'success');
+        setTimeout(() => {
+          window.location.href = selectedRole === 'seller' ? 'dashboard.html' : 'index.html';
+        }, 600);
+      } catch (err) {
+        App.showToast(err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+      }
+    });
+
+    function showFieldError(inputId, errorId, message) {
+      document.getElementById(inputId).classList.add('error');
+      const errorEl = document.getElementById(errorId);
+      errorEl.textContent = message;
+      errorEl.classList.add('visible');
+    }
+
+    // Redirect if already logged in
+    if (Auth.getCurrentUser()) {
+      window.location.href = 'index.html';
+    }
+  </script>
+</body>
+</html>

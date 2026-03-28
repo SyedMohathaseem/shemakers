@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Profile — SheMakers</title>
+  <meta name="description" content="View a seller's profile and their handmade products on SheMakers.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="container">
+      <a href="index.html" class="nav-brand">
+        <svg viewBox="0 0 32 32" fill="none">
+          <circle cx="16" cy="16" r="14" fill="#003049"/>
+          <path d="M10 20c0-4 3-7 6-7s6 3 6 7" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="16" cy="11" r="3" fill="#fff"/>
+        </svg>
+        SheMakers
+      </a>
+      <div class="nav-links" id="navLinks">
+        <a href="index.html">Home</a>
+        <a href="feed.html">Feed</a>
+        <div id="navAuth" style="display:flex;gap:12px;align-items:center;">
+          <a href="login.html" class="btn btn-outline btn-sm">Log In</a>
+          <a href="signup.html" class="btn btn-primary btn-sm">Sign Up</a>
+        </div>
+        <div id="navUser" style="display:none;gap:12px;align-items:center;">
+          <a href="dashboard.html" class="nav-dash-link" style="display:none;">Dashboard</a>
+          <a href="profile.html" class="nav-profile-link" aria-label="Open profile">
+            <span class="nav-profile-avatar">
+              <img class="nav-profile-avatar-image" alt="Profile" style="display:none;">
+              <span class="nav-profile-avatar-initial">U</span>
+            </span>
+          </a>
+        </div>
+      </div>
+      <div class="nav-hamburger" id="navToggle">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Profile Content -->
+  <main class="profile-page container" id="profileContainer">
+    <!-- Rendered by JS -->
+  </main>
+
+  <div class="modal-overlay" id="profileEditModal">
+    <div class="modal profile-edit-modal">
+      <div class="modal-header">
+        <h2>Edit Profile</h2>
+        <button class="modal-close" onclick="closeProfileEditModal()" aria-label="Close edit profile">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <form class="modal-form" id="profileEditForm" onsubmit="return false;">
+        <div class="profile-avatar-upload">
+          <div class="profile-avatar-preview" id="profileAvatarPreview">
+            <span id="profileAvatarPreviewInitial">U</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('profileImageInput').click()">Upload Photo</button>
+            <input type="file" id="profileImageInput" accept="image/*" style="display:none;">
+            <span style="font-size:12px;color:var(--gray-500);">Use a clear square photo for best result.</span>
+          </div>
+        </div>
+
+        <div class="profile-form-grid">
+          <div class="form-group">
+            <label class="form-label" for="editNameInput">Full Name</label>
+            <input class="form-input" type="text" id="editNameInput" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="editCityInput">City</label>
+            <input class="form-input" type="text" id="editCityInput" placeholder="e.g. Jaipur">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="editBioInput">Bio</label>
+          <textarea class="form-input" id="editBioInput" rows="4" placeholder="Tell customers about your work, style, or products..."></textarea>
+        </div>
+
+        <button class="btn btn-primary btn-lg" type="submit" id="saveProfileBtn" style="width:100%;">Save Profile</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="js/firebase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/products.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    let profileState = {
+      currentUser: null,
+      viewedUser: null,
+      selectedImageFile: null
+    };
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const container = document.getElementById('profileContainer');
+      const params = new URLSearchParams(window.location.search);
+      let userId = params.get('id');
+      profileState.currentUser = Auth.getCurrentUser();
+
+      // If no id param, show current user's profile
+      if (!userId) {
+        if (profileState.currentUser) {
+          userId = profileState.currentUser.id;
+        } else {
+          window.location.href = 'login.html';
+          return;
+        }
+      }
+
+      App.showSpinner(container);
+
+      try {
+        const seller = await Products.getSellerInfo(userId);
+        if (!seller) {
+          App.showEmpty(container, 'Seller not found', 'This profile may no longer exist.');
+          return;
+        }
+        profileState.viewedUser = seller;
+
+        const products = await Products.getSellerProducts(userId);
+        const initial = seller.name.charAt(0).toUpperCase();
+        const isOwnProfile = profileState.currentUser && profileState.currentUser.id === seller.id;
+
+        document.title = `${seller.name} — SheMakers`;
+
+        let productCards = '';
+        if (products.length) {
+          productCards = products.map(product => {
+            const isVideo = product.mediaType === 'video';
+            const waLink = Products.getWhatsAppLink(product.whatsapp, product.title, product.price);
+            return `
+              <div class="card animate-in">
+                <a href="product.html?id=${product.id}" class="card-media">
+                  ${isVideo
+                    ? `<video src="${product.mediaUrl}" autoplay muted loop playsinline preload="metadata"></video>`
+                    : `<img src="${product.mediaUrl}" alt="${product.title}" loading="lazy">`
+                  }
+                </a>
+                <div class="card-body">
+                  <a href="product.html?id=${product.id}">
+                    <div class="card-title">${product.title}</div>
+                  </a>
+                  <div class="card-price">${App.formatPrice(product.price)}</div>
+                  <div class="card-actions">
+                    <a href="${waLink}" target="_blank" rel="noopener" class="btn btn-whatsapp btn-sm" style="flex:1;">
+                      <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.118.553 4.107 1.518 5.833L0 24l6.336-1.484A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.82c-1.977 0-3.856-.53-5.508-1.49l-.396-.233-3.76.882.948-3.644-.258-.41A9.78 9.78 0 012.18 12C2.18 6.58 6.58 2.18 12 2.18S21.82 6.58 21.82 12 17.42 21.82 12 21.82z"/></svg>
+                      Order
+                    </a>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        container.innerHTML = `
+          <div class="profile-header" style="animation: fadeSlideUp 0.5s ease forwards;">
+            <div class="profile-avatar-wrap">
+              <div class="profile-avatar">
+                ${seller.profileImageUrl
+                  ? `<img class="profile-avatar-image" src="${seller.profileImageUrl}" alt="${seller.name}">`
+                  : `<span class="profile-avatar-fallback">${initial}</span>`
+                }
+              </div>
+            </div>
+            <h1>${seller.name}</h1>
+            <p>📱 ${seller.phone}</p>
+            ${seller.city ? `<p style="font-size:var(--text-sm);color:rgba(236,244,249,0.9);">📍 ${seller.city}</p>` : ''}
+            ${seller.bio ? `<p style="max-width:620px;margin:10px auto 0;color:rgba(236,244,249,0.92);line-height:1.6;">${seller.bio}</p>` : ''}
+            <div style="margin-top:var(--space-3);">
+              <span class="badge">${seller.role === 'seller' ? '🏪 Seller' : '🛒 Buyer'}</span>
+              <span class="badge" style="margin-left:var(--space-2);">${products.length} Product${products.length !== 1 ? 's' : ''}</span>
+            </div>
+            ${isOwnProfile ? `
+              <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:var(--space-4);">
+                <button class="btn btn-secondary profile-edit-btn" onclick="openProfileEditModal()">Edit Profile</button>
+                <button class="btn btn-outline profile-edit-btn" onclick="Auth.logout()">Logout</button>
+              </div>
+            ` : ''}
+          </div>
+
+          ${products.length ? `
+            <h2 class="profile-section-title">Products by ${seller.name}</h2>
+            <div class="products-grid">${productCards}</div>
+          ` : `
+            <div class="empty-state">
+              <h3>No products listed yet</h3>
+              <p>No handmade listings added yet.</p>
+            </div>
+          `}
+        `;
+
+        App.initAnimations();
+        initProfileEditForm();
+
+      } catch (err) {
+        console.error(err);
+        App.showEmpty(container, 'Error loading profile', 'Please try again later.');
+      }
+    });
+
+    async function getUserDocRefById(userId) {
+      const directRef = db.collection('users').doc(userId);
+      const directSnap = await directRef.get();
+      if (directSnap.exists) return directRef;
+
+      const q = await db.collection('users').where('id', '==', userId).get();
+      if (!q.empty) {
+        return db.collection('users').doc(q.docs[0].id);
+      }
+      return null;
+    }
+
+    function initProfileEditForm() {
+      const form = document.getElementById('profileEditForm');
+      const imageInput = document.getElementById('profileImageInput');
+      if (!form || !imageInput) return;
+
+      imageInput.addEventListener('change', onProfileImageSelected);
+      form.addEventListener('submit', onProfileSave);
+    }
+
+    function openProfileEditModal() {
+      if (!profileState.viewedUser || !profileState.currentUser) return;
+      if (profileState.currentUser.id !== profileState.viewedUser.id) return;
+
+      profileState.selectedImageFile = null;
+
+      document.getElementById('editNameInput').value = profileState.viewedUser.name || '';
+      document.getElementById('editCityInput').value = profileState.viewedUser.city || '';
+      document.getElementById('editBioInput').value = profileState.viewedUser.bio || '';
+
+      renderAvatarPreview(profileState.viewedUser.profileImageUrl, profileState.viewedUser.name);
+      document.getElementById('profileEditModal').classList.add('active');
+    }
+
+    function closeProfileEditModal() {
+      document.getElementById('profileEditModal').classList.remove('active');
+    }
+
+    function renderAvatarPreview(imageUrl, name) {
+      const preview = document.getElementById('profileAvatarPreview');
+      if (!preview) return;
+      const initial = (name || 'U').charAt(0).toUpperCase();
+
+      preview.innerHTML = imageUrl
+        ? `<img src="${imageUrl}" alt="Profile preview">`
+        : `<span>${initial}</span>`;
+    }
+
+    function onProfileImageSelected(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) {
+        App.showToast('Please select an image file', 'error');
+        return;
+      }
+
+      profileState.selectedImageFile = file;
+      renderAvatarPreview(URL.createObjectURL(file), profileState.viewedUser ? profileState.viewedUser.name : 'U');
+    }
+
+    async function onProfileSave(e) {
+      e.preventDefault();
+      if (!profileState.currentUser || !profileState.viewedUser) return;
+
+      const saveBtn = document.getElementById('saveProfileBtn');
+      const name = document.getElementById('editNameInput').value.trim();
+      const city = document.getElementById('editCityInput').value.trim();
+      const bio = document.getElementById('editBioInput').value.trim();
+
+      if (!name) {
+        App.showToast('Name is required', 'error');
+        return;
+      }
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+
+      try {
+        const userRef = await getUserDocRefById(profileState.currentUser.id);
+        if (!userRef) throw new Error('User profile not found');
+
+        const updateData = { name, city, bio };
+
+        if (profileState.selectedImageFile) {
+          const ext = (profileState.selectedImageFile.name.split('.').pop() || 'jpg').toLowerCase();
+          const filePath = `profiles/${profileState.currentUser.id}_${Date.now()}.${ext}`;
+          const uploadResult = await storage.ref(filePath).put(profileState.selectedImageFile);
+          updateData.profileImageUrl = await uploadResult.ref.getDownloadURL();
+          updateData.profileImagePath = filePath;
+        }
+
+        await userRef.update(updateData);
+
+        profileState.viewedUser = { ...profileState.viewedUser, ...updateData };
+        Auth.updateCurrentUser(updateData);
+        Auth.updateNavAuth();
+
+        App.showToast('Profile updated', 'success');
+        closeProfileEditModal();
+        setTimeout(() => window.location.reload(), 250);
+      } catch (err) {
+        App.showToast(err.message || 'Failed to update profile', 'error');
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Profile';
+      }
+    }
+
+    document.getElementById('profileEditModal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeProfileEditModal();
+    });
+  </script>
+</body>
+</html>

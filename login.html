@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Log In — SheMakers</title>
+  <meta name="description" content="Log in to your SheMakers account to browse or sell handmade products.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="auth-header">
+        <a href="index.html" class="auth-brand">SheMakers</a>
+        <h1>Welcome back</h1>
+        <p>Log in to your account</p>
+      </div>
+
+      <form class="auth-form" id="loginForm" onsubmit="return false;">
+        <div class="form-group">
+          <label class="form-label" for="phoneInput">Phone Number</label>
+          <input class="form-input" type="tel" id="phoneInput" placeholder="Enter your phone number" required autocomplete="tel">
+          <span class="form-error" id="phoneError"></span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="passwordInput">Password</label>
+          <input class="form-input" type="password" id="passwordInput" placeholder="Enter your password" required>
+          <span class="form-error" id="passwordError"></span>
+        </div>
+
+        <button class="btn btn-primary btn-lg" type="submit" id="loginBtn" style="width:100%;">
+          Log In
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        Don't have an account? <a href="signup.html">Sign Up</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="js/firebase.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/products.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      // Clear errors
+      document.querySelectorAll('.form-error').forEach(el => {
+        el.textContent = '';
+        el.classList.remove('visible');
+      });
+      document.querySelectorAll('.form-input').forEach(el => el.classList.remove('error'));
+
+      const phone = document.getElementById('phoneInput').value.trim();
+      const password = document.getElementById('passwordInput').value;
+
+      let hasError = false;
+
+      if (!phone) {
+        showFieldError('phoneInput', 'phoneError', 'Phone number is required');
+        hasError = true;
+      }
+      if (!password) {
+        showFieldError('passwordInput', 'passwordError', 'Password is required');
+        hasError = true;
+      }
+
+      if (hasError) return;
+
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = true;
+      btn.textContent = 'Logging in...';
+
+      try {
+        const user = await Auth.login(phone, password);
+        App.showToast('Welcome back, ' + user.name + '!', 'success');
+        setTimeout(() => {
+          window.location.href = user.role === 'seller' ? 'dashboard.html' : 'index.html';
+        }, 600);
+      } catch (err) {
+        App.showToast(err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Log In';
+      }
+    });
+
+    function showFieldError(inputId, errorId, message) {
+      document.getElementById(inputId).classList.add('error');
+      const errorEl = document.getElementById(errorId);
+      errorEl.textContent = message;
+      errorEl.classList.add('visible');
+    }
+
+    // Redirect if already logged in
+    if (Auth.getCurrentUser()) {
+      window.location.href = 'index.html';
+    }
+  </script>
+</body>
+</html>
